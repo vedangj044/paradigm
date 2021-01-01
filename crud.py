@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 import models
+import datetime
 import random
 
 
@@ -19,6 +20,7 @@ class BasicInfo():
         responseList = []
         for i in self.active_classes:
             response = {}
+            response["class_id"] = i[1].classID
             response["course_name"] = self.db.query(models.Course).filter(models.Course.courseID == i[0].courseID).first().courseName
             response["participants"] = len(self.db.query(models.Enroll).filter(models.Enroll.classID == i[1].classID).all())
             response["isEnrolled"] = len(self.db.query(models.Enroll).filter(models.Enroll.studentID == self.userId).filter(models.Enroll.classID == i[1].classID).all()) != 0
@@ -28,7 +30,7 @@ class BasicInfo():
 
     def get_history_classes(self):
 
-        self.history_classes = self.db.query(models.Enroll, models.Score, models.Clas, models.Course).filter(models.Enroll.studentID == self.userId).filter(models.Clas.active == 0).all()
+        self.history_classes = self.db.query(models.Enroll, models.Score, models.Clas).filter(models.Enroll.studentID == self.userId).filter(models.Clas.active == 0).all()
 
         historyResponseList = []
         for i in self.history_classes:
@@ -115,12 +117,59 @@ class QuestionTest():
         self.db.commit()
         return respObj
 
+def get_course_teacher(session, email):
+    course = session.query(models.CourseTeacher, models.Teacher).filter(models.Teacher.teacherEmail == email).filter(models.CourseTeacher.teacherID == models.Teacher.teacherID).all()
+
+    resp = []
+    for i in course:
+        resp.append(session.query(models.Course).filter(models.Course.courseID == i[0].courseID).first().courseName)
+
+    return {"course": set(resp)}
+
+def create_class_in_db(session, email, course):
+    teacherID = session.query(models.Teacher).filter(models.Teacher.teacherEmail == email).first().teacherID
+    course = session.query(models.Course).filter(models.Course.courseName == course).first().courseID
+    now = datetime.datetime.now()
+    date = now.strftime("%Y-%m-%d")
+    _fmin = now.strftime("%m")
+    fmin = str(int(_fmin) - int(_fmin)%5)
+    time = now.strftime("%Y-%m-%dT%H:"+fmin+":00")
+
+    obj = models.Clas(courseID=course, teacherID=teacherID, date=date, time=time, duration=3600, active=1)
+    session.add(obj)
+    session.commit()
+
+    session.refresh(obj)
+    return obj.classID
+
+def stop_class(session, classID):
+    clas =  session.query(models.Clas).filter(models.Clas.classID == classID).first()
+    clas.active = 0
+
+    _id = clas.classID
+
+    _scoreboard = []
+
+    for i in session.query(models.Question).filter(models.Question.classID == _id):
+        for j in session.query(models.Response, func.count(models.Response)).filter(models.Response.questionID == i).filter(models.Response.valid == 1).group_by(models.Response.studentID).all()
+            _scoreboard.append((j[0].studentID,j[1]))
+
+    _scoreboard = sorted(_scoreboard, key=lambda x:x[1], reverse=True)
+
+    rank = 1
+    for i in _scoreboard:
+        session.add(models.Score(classID=_id, studentID=i[0], totalScore=i[1], rank=rank))
+        rank += 1
+
+    session.commit()
+
+def enroll_class_in_db(session, studntID, classID):
+    _id = "{0}_{1}".format(studntID, classID)
+    session.add(models.Enroll(enrollID=_id, classID=classID, studentID=studntID))
+    session.commit()
 
 if __name__ == '__main__':
     engine = create_engine('mysql+pymysql://vedangj:password@localhost/paradigm')
     Session = sessionmaker(bind=engine)
     session = Session()
-    bas = BasicInfo(session, 1)
-    print(bas.get_response_basic())
-    basic = TestReview(session, 1, 1)
-    print(basic.get_test_review())
+    stop_class(session, 2)
