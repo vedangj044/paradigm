@@ -1,1 +1,1 @@
-# paradigm
+# Paradigm
