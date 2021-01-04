@@ -94,9 +94,9 @@ class Question(Base):
     questionID = Column(INTEGER(11), primary_key=True)
     questionTypeID = Column(ForeignKey('questionType.questionTypeID'), nullable=False, index=True)
     text = Column(Text, nullable=False)
-    option = Column(Text, nullable=False)
-    correctOption = Column(INTEGER(11), nullable=False)
-    correctTF = Column(TINYINT(1), nullable=False)
+    option = Column(Text)
+    correctOption = Column(INTEGER(11))
+    correctTF = Column(TINYINT(1))
     classID = Column(ForeignKey('class.classID'), nullable=False, index=True)
     asked = Column(TINYINT(1), nullable=False)
 
@@ -114,6 +114,17 @@ class Score(Base):
     rank = Column(INTEGER(11))
 
     clas = relationship('Clas')
+    student = relationship('Student')
+
+
+class QuestionAsked(Base):
+    __tablename__ = 'question_asked'
+
+    questionAsked = Column(String(10), primary_key=True)
+    questionID = Column(ForeignKey('question.questionID'), nullable=False, index=True)
+    studentID = Column(ForeignKey('student.studentID'), nullable=False, index=True)
+
+    question = relationship('Question')
     student = relationship('Student')
 
 
