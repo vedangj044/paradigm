@@ -195,22 +195,6 @@ def submit_response(session, studentID, questionID, response):
 def stop_class(session, classID):
     clas =  session.query(models.Clas).filter(models.Clas.classID == classID).first()
     clas.active = 0
-
-    # _id = clas.classID
-    #
-    # _scoreboard = []
-    #
-    # for i in session.query(models.Question).filter(models.Question.classID == _id):
-    #     for j in session.query(models.Response, func.count(models.Response)).filter(models.Response.questionID == i).filter(models.Response.valid == 1).group_by(models.Response.studentID).all()
-    #         _scoreboard.append((j[0].studentID,j[1]))
-    #
-    # _scoreboard = sorted(_scoreboard, key=lambda x:x[1], reverse=True)
-    #
-    # rank = 1
-    # for i in _scoreboard:
-    #     session.add(models.Score(classID=_id, studentID=i[0], totalScore=i[1], rank=rank))
-    #     rank += 1
-
     session.commit()
 
 def enroll_class_in_db(session, studntID, classID):
@@ -218,8 +202,43 @@ def enroll_class_in_db(session, studntID, classID):
     session.commit()
     return {"message": "Enrolled"}
 
+def get_teacher_info(session, teacherID):
+    teacherinfo = session.query(models.Teacher).filter(models.Teacher.teacherID == teacherID).first()
+    resp = {}
+    resp["name"] = teacherinfo.teacherName
+    resp["profilePicture"] = teacherinfo.profilePicture
+    resp["course"] = get_course_teacher(session, teacherinfo.teacherEmail)["course"]
 
-if __name__ == '__main__':
+def get__list_class_info_teacherDashboard(session, crouseName, teacherID):
+    crouseID = session.query(models.Course).filter(models.Course.courseName = courseName).first().courseID
+
+    listOfClass = session.query(models.Clas).filter(models.Clas.crouseID == crouseID).filter(models.Clas.teacherID == teacherID).order_by(models.Clas.date.desc).all()
+    respList = []
+    for _clas in listOfClass:
+        respObj = {}
+        respObj["classID"] = _clas.classID
+        respObj["className"] = _clas.className
+        respObj["date"] = _clas.date
+        respObj["questionAsked"] = session.query(func.count(models.Question.questionID)).filter(models.Question.classID == _clas.classID).scalar()
+        respObj["flaggedQuestion"] = session.query(func.count(models.Question.questionID)).filter(models.Question.classID == _clas.classID).filter(models.Question.questionFlagged == 1).scalar()
+        respObj["attendees"] = session.query(func.courseName(models.Enroll.enrollID)).filter(models.Enroll.classID == _clas.classID).scalar()
+        respList.append(respObj)
+
+def get_class_info_for_teacher(session, classID):
+
+    listOfQuestion = session.query(models.Question).filter(models.Question.classID == classID).all()
+
+    graphList = []
+    inde = 1
+    for question in listOfQuestion:
+        graphList.append([str(i), session.query(func.count(models.Response)).filter(models.Response.questionID == question.questionID).filter(models.Response.valid == 1).scalar()])
+        inde += 1
+        respObj = {}
+        respObj["question"] = question.questionText
+        respObj["answer"] = question.answer
+
+
+"if __name__ == '__main__':
     engine = create_engine('mysql+pymysql://vedangj:password@localhost/paradigm')
     Session = sessionmaker(bind=engine)
     session = Session()
